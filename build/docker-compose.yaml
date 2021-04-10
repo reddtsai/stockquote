@@ -1,0 +1,19 @@
+version: '3'
+services:
+    db:
+        image: mysql
+        command: --default-authentication-plugin=mysql_native_password
+        restart: always
+        environment: 
+            MYSQL_ROOT_PASSWORD: 123456
+        ports:
+            - "3306:3306"
+        volumes:
+            - ./init:/docker-entrypoint-initdb.d
+    app-mining:
+        image: app-mining:${TAG:-latest}
+        restart: always
+        links:
+            - db
+        depends_on:
+            - db
