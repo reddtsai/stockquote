@@ -17,3 +17,14 @@ services:
             - db
         depends_on:
             - db
+    app-exchange:
+        image: app-exchange:${TAG:-latest}
+        restart: always
+        ports:
+            - "5000:5000"
+        links:
+            - db
+            - app-mining
+        depends_on:
+            - db
+            - app-mining

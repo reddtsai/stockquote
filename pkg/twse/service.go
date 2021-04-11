@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 
 	"golang.org/x/text/encoding/traditionalchinese"
 	"golang.org/x/text/transform"
@@ -13,7 +14,9 @@ import (
 )
 
 type ITWSE interface {
-	BWIBBU(string) error
+	ImportStock(string) error
+	GetStock(int, int) ([]Stock, error)
+	RankingPE(string, int) ([]PE, error)
 }
 
 type TWSE struct {
@@ -32,8 +35,90 @@ func NewTWSE(url string, db *gorm.DB) ITWSE {
 	}
 }
 
-// BWIBBU 匯入個股日本益比 殖利率及股價淨值比
-func (t *TWSE) BWIBBU(date string) error {
+type Stock struct {
+	Code   int    `json:"code"`
+	Date   string `json:"date"`
+	Name   string `json:"name"`
+	PE     string `json:"pe"`
+	PB     string `json:"pb"`
+	Yield  string `json:"yield"`
+	Year   string `json:"year"`
+	Fiscal string `json:"fiscal"`
+}
+
+func (t *TWSE) GetStock(code, count int) ([]Stock, error) {
+	stocks := []Stock{}
+	record, err := t.repo.GetDividend(code, count)
+	if err != nil {
+		return stocks, err
+	}
+	for _, v := range record {
+		stock := Stock{
+			Code:   v.Code,
+			Date:   v.Date,
+			Name:   "-",
+			PE:     "-",
+			PB:     "-",
+			Yield:  "-",
+			Year:   "-",
+			Fiscal: "-",
+		}
+		if v.Name.Valid {
+			stock.Name = v.Name.String
+		}
+		if v.PE.Valid {
+			stock.PE = strconv.FormatFloat(v.PE.Float64, 'f', -1, 64)
+		}
+		if v.PB.Valid {
+			stock.PB = strconv.FormatFloat(v.PB.Float64, 'f', -1, 64)
+		}
+		if v.Yield.Valid {
+			stock.Yield = strconv.FormatFloat(v.Yield.Float64, 'f', -1, 64)
+		}
+		if v.Year.Valid {
+			stock.Year = v.Year.String
+		}
+		if v.Fiscal.Valid {
+			stock.Fiscal = v.Fiscal.String
+		}
+		stocks = append(stocks, stock)
+	}
+	return stocks, nil
+}
+
+type PE struct {
+	Code int    `json:"code"`
+	Date string `json:"date"`
+	Name string `json:"name"`
+	PE   string `json:"pe"`
+}
+
+func (t *TWSE) RankingPE(date string, count int) ([]PE, error) {
+	rank := []PE{}
+	record, err := t.repo.GetPE(date, count)
+	if err != nil {
+		return rank, err
+	}
+	for _, v := range record {
+		pe := PE{
+			Code: v.Code,
+			Date: v.Date,
+			Name: "-",
+			PE:   "-",
+		}
+		if v.Name.Valid {
+			pe.Name = v.Name.String
+		}
+		if v.PE.Valid {
+			pe.PE = strconv.FormatFloat(v.PE.Float64, 'f', -1, 64)
+		}
+		rank = append(rank, pe)
+	}
+	return rank, nil
+}
+
+// ImportStock 匯入個股日本益比 殖利率及股價淨值比
+func (t *TWSE) ImportStock(date string) error {
 	url := fmt.Sprintf("%s/exchangeReport/BWIBBU_d?response=csv&date=%s&selectType=ALL", t.url, date)
 	path := fmt.Sprintf("BWIBBU_d_ALL_%s.csv", date)
 	err := t.downloadFile(url, path)
