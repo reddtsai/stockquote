@@ -16,6 +16,7 @@ import (
 type ITWSE interface {
 	ImportStock(string) error
 	GetStock(int, int) ([]Stock, error)
+	GetStockUp(int, string, string) (StockUp, error)
 	RankingPE(string, int) ([]PE, error)
 }
 
@@ -48,7 +49,7 @@ type Stock struct {
 
 func (t *TWSE) GetStock(code, count int) ([]Stock, error) {
 	stocks := []Stock{}
-	record, err := t.repo.GetDividend(code, count)
+	record, err := t.repo.GetDividendLimit("DATE desc", count, "CODE = ?", code)
 	if err != nil {
 		return stocks, err
 	}
@@ -95,7 +96,7 @@ type PE struct {
 
 func (t *TWSE) RankingPE(date string, count int) ([]PE, error) {
 	rank := []PE{}
-	record, err := t.repo.GetPE(date, count)
+	record, err := t.repo.GetDividendLimit("PE desc", count, "DATE = ?", date)
 	if err != nil {
 		return rank, err
 	}
@@ -117,7 +118,63 @@ func (t *TWSE) RankingPE(date string, count int) ([]PE, error) {
 	return rank, nil
 }
 
-// ImportStock 匯入個股日本益比 殖利率及股價淨值比
+type F64 struct {
+	Val float64
+}
+
+type StockUp struct {
+	Code  int    `json:"code"`
+	Days  int    `json:"days"`
+	Begin string `json:"begin"`
+	End   string `json:"end"`
+}
+
+func (t *TWSE) GetStockUp(code int, begin, end string) (StockUp, error) {
+	stock := StockUp{
+		Code: code,
+	}
+	record, err := t.repo.GetDividend("DATE", "CODE = ? AND DATE BETWEEN ? AND ?", code, begin, end)
+	if err != nil {
+		return stock, err
+	}
+	var tmp *F64
+	tmpUP := StockUp{}
+	for k, v := range record {
+		if k == 0 {
+			tmpUP.Begin = v.Date
+			tmpUP.End = v.Date
+			tmpUP.Days = 1
+			stock.Begin = tmpUP.Begin
+			stock.End = tmpUP.End
+			stock.Days = tmpUP.Days
+		} else {
+			if tmp != nil && v.Yield.Valid {
+				d := (v.Yield.Float64 - tmp.Val)
+				if d > 0 {
+					tmpUP.Days++
+					tmpUP.End = v.Date
+				} else {
+					if tmpUP.Days > stock.Days {
+						stock.Begin = tmpUP.Begin
+						stock.End = tmpUP.End
+						stock.Days = tmpUP.Days
+					}
+					tmpUP.Begin = v.Date
+					tmpUP.End = v.Date
+					tmpUP.Days = 1
+				}
+			}
+		}
+		tmp = nil
+		if v.Yield.Valid {
+			tmp = &F64{
+				Val: v.Yield.Float64,
+			}
+		}
+	}
+	return stock, nil
+}
+
 func (t *TWSE) ImportStock(date string) error {
 	url := fmt.Sprintf("%s/exchangeReport/BWIBBU_d?response=csv&date=%s&selectType=ALL", t.url, date)
 	path := fmt.Sprintf("BWIBBU_d_ALL_%s.csv", date)

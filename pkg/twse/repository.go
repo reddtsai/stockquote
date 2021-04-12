@@ -11,8 +11,8 @@ import (
 
 type IStockRepo interface {
 	BatchInsertDividend([][]string, string) error
-	GetDividend(int, int) ([]Dividend, error)
-	GetPE(string, int) ([]Dividend, error)
+	GetDividend(string, string, ...interface{}) ([]Dividend, error)
+	GetDividendLimit(string, int, string, ...interface{}) ([]Dividend, error)
 }
 
 type StockRepo struct {
@@ -36,22 +36,21 @@ func NewStockRepo(db *gorm.DB) IStockRepo {
 	}
 }
 
-func (s *StockRepo) GetDividend(code, limit int) ([]Dividend, error) {
+func (s *StockRepo) GetDividend(order string, condition string, args ...interface{}) ([]Dividend, error) {
 	var record []Dividend
 	err := s.db.Table("DIVIDEND").
-		Where("CODE = ?", code).
-		Order("DATE desc").
-		Limit(limit).
+		Where(condition, args...).
+		Order(order).
 		Scan(&record).Error
 
 	return record, err
 }
 
-func (s *StockRepo) GetPE(date string, limit int) ([]Dividend, error) {
+func (s *StockRepo) GetDividendLimit(order string, limit int, condition string, args ...interface{}) ([]Dividend, error) {
 	var record []Dividend
 	err := s.db.Table("DIVIDEND").
-		Where("DATE = ?", date).
-		Order("PE desc").
+		Where(condition, args...).
+		Order(order).
 		Limit(limit).
 		Scan(&record).Error
 
