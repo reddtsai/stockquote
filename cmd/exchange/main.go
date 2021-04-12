@@ -83,7 +83,7 @@ func newServer(twse twse.ITWSE) *Server {
 	{
 		v1.GET("/stock/:code", srv.stock)
 		v1.GET("/ranking/:date", srv.ranking)
-		v1.GET("/dividend", srv.dividend)
+		v1.GET("/dividend/:code", srv.dividend)
 		v1.GET("/download/:date", srv.download)
 	}
 	srv.router = router
@@ -147,7 +147,34 @@ func (s *Server) ranking(c *gin.Context) {
 }
 
 func (s *Server) dividend(c *gin.Context) {
+	resp := &Response{
+		Code: 9,
+		Data: twse.StockUp{},
+	}
+	codePath := c.Param("code")
+	code, err := strconv.Atoi(codePath)
+	if err != nil {
+		resp.Message = "stock code is not valid!!"
+		c.JSON(400, resp)
+		return
+	}
+	begin := c.Query("begin")
+	end := c.Query("end")
+	if begin == "" || end == "" {
+		resp.Message = "begin and end is requied!!"
+		c.JSON(400, resp)
+		return
+	}
+	record, err := s.twse.GetStockUp(code, begin, end)
+	if err != nil {
+		resp.Message = "system error!!"
+		c.JSON(500, resp)
+		return
+	}
 
+	resp.Code = 0
+	resp.Data = record
+	c.JSON(200, resp)
 }
 
 func (s *Server) download(c *gin.Context) {
