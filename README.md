@@ -26,4 +26,4 @@ Exchange API 符合 Open API 規範，本專案支援 Swagger。
 
 # Architecture
 
-![architecture](https://github.com/reddtsai/stockquote/doc/twse.png)
+![architecture](https://github.com/reddtsai/static/blob/master/twse.png)
